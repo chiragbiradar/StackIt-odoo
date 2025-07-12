@@ -5,13 +5,14 @@ import re
 from datetime import datetime, timezone
 from typing import List
 
-from py_pg_notify import Listener, Notifier
+from py_pg_notify import Listener, Notifier, PGConfig
 from py_pg_notify import Notification as PGNotification
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from database.models import Answer, NotificationType, Question, User
 from database.models import Notification as NotificationModel
+from utils.config import settings
 
 # Database configuration - using environment variables for now
 # You can replace these with your config system
@@ -30,11 +31,20 @@ class StackItNotificationService:
     """Simplified StackIt notification service using PostgreSQL only."""
 
     def __init__(self):
-        # Simple PostgreSQL-only approach
-        pass
+        # PostgreSQL + py-pg-notify for real-time notifications
+
+        self.pg_config = PGConfig(
+            user=settings.db_user,
+            password=settings.db_password,
+            host=settings.db_host,
+            port=settings.db_port,
+            dbname=settings.db_name
+        )
+        self.listener = None
+        self.notifier = None
 
     async def initialize(self):
-        """Initialize the notification service with triggers and listeners."""
+        """Initialize the notification service with database storage and real-time notifications."""
         try:
             # Set up database triggers for automatic notifications
             await self.setup_notification_triggers()
@@ -277,7 +287,7 @@ class StackItNotificationService:
             # Update all unread notifications
             count = db.query(NotificationModel).filter(
                 NotificationModel.user_id == user.id,
-                ~NotificationModel.is_read
+                NotificationModel.is_read.is_(False)
             ).update({
                 'is_read': True,
                 'updated_at': datetime.now(timezone.utc)

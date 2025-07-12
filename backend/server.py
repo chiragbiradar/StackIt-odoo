@@ -13,10 +13,14 @@ from fastapi.responses import JSONResponse
 # from utils.config import settings
 # Import database
 from database import check_database_connection, create_tables
+
+# Import middleware
+from middleware import ResponseCacheMiddleware
 from services.answer_service import router as answer_router
 
 # Import API routes
 from services.auth_service import router as auth_router
+from services.cache_service import router as cache_router
 from services.notification_service import router as notification_router
 from services.question_service import router as question_router
 from services.user_service import router as user_router
@@ -98,6 +102,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Add response caching middleware
+app.add_middleware(
+    ResponseCacheMiddleware,
+    cache_dir="./cache",
+    default_expire=300,  # 5 minutes default
+    exclude_paths=[
+        "/docs",
+        "/redoc",
+        "/openapi.json",
+        "/health",
+        "/metrics",
+        "/auth",  # Don't cache auth endpoints
+        "/notifications"  # Don't cache user-specific notifications
+    ]
+)
+
 
 @app.get("/health")
 async def health_check():
@@ -122,6 +142,9 @@ async def health_check():
         )
 
 
+# Cache management endpoints are now in services/cache_service.py
+
+
 # Include API routers
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 app.include_router(user_router, prefix="/users", tags=["Users"])
@@ -129,6 +152,7 @@ app.include_router(notification_router, prefix="/notifications", tags=["Notifica
 app.include_router(question_router, tags=["Questions"])
 app.include_router(answer_router, tags=["Answers"])
 app.include_router(vote_router, tags=["Votes"])
+app.include_router(cache_router, tags=["Cache Management"])
 
 
 if __name__ == "__main__":
