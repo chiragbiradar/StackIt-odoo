@@ -16,7 +16,14 @@ from database import check_database_connection, create_tables
 
 # Import API routes
 from services.auth_service import router as auth_router
+from services.notification_service import router as notification_router
 from services.user_service import router as user_router
+
+# Import notification service
+from utils.notification import (
+    cleanup_notification_service,
+    initialize_notification_service,
+)
 
 # from services.user_service import router as user_router
 # from services.question_service import router as question_router
@@ -46,8 +53,24 @@ async def lifespan(app: FastAPI):
         print(f"❌ Error creating tables: {e}")
         raise HTTPException(status_code=500, detail="Database setup failed") from e
 
+    # Initialize notification service
+    try:
+        await initialize_notification_service()
+        print("✅ Notification service ready")
+    except Exception as e:
+        print(f"❌ Error initializing notification service: {e}")
+        # Don't fail startup if notifications fail
+        print("⚠️ Continuing without real-time notifications")
+
     print("🎉 StackIt backend is ready!")
     yield
+
+    # Cleanup on shutdown
+    try:
+        await cleanup_notification_service()
+        print("✅ Notification service stopped")
+    except Exception as e:
+        print(f"❌ Error stopping notification service: {e}")
 
     # Shutdown
     print("👋 Shutting down StackIt backend...")
@@ -99,6 +122,7 @@ async def health_check():
 # Include API routers
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 app.include_router(user_router, prefix="/users", tags=["Users"])
+app.include_router(notification_router, prefix="/notifications", tags=["Notifications"])
 # app.include_router(user_router, prefix=settings.api_v1_prefix + "/users", tags=["Users"])
 # app.include_router(question_router, prefix=settings.api_v1_prefix + "/questions", tags=["Questions"])
 # app.include_router(answer_router, prefix=settings.api_v1_prefix + "/answers", tags=["Answers"])
