@@ -7,7 +7,7 @@ class Settings(BaseModel):
     """Application settings loaded from environment variables."""
 
     # Database Configuration
-    database_url: str = os.getenv('DATABASE_URL', 'postgresql://postgres:1234@localhost:5432/stackit_db')
+    database_url: str = os.getenv('DATABASE_URL', 'sqlite:///./stackit_test.db')
     db_host: str = os.getenv('DB_HOST', 'localhost')
     db_port: str = os.getenv('DB_PORT', '5432')
     db_name: str = os.getenv('DB_NAME', 'stackit_db')
