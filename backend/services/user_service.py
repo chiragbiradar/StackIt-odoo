@@ -17,6 +17,7 @@ from schemas.user import UserProfile, UserStats
 router = APIRouter()
 
 
+
 @router.get("/{user_id}", response_model=UserProfile)
 async def get_user_profile(
     user_id: int,
@@ -33,7 +34,6 @@ async def get_user_profile(
     try:
         # Get user from database
         user = db.query(User).filter(User.id == user_id).first()
-
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
