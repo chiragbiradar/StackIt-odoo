@@ -1,9 +1,10 @@
 """
 Database performance optimizations and PostgreSQL-specific configurations.
 """
+import logging
+
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -15,14 +16,14 @@ def create_postgresql_extensions(db: Session):
         "CREATE EXTENSION IF NOT EXISTS btree_gin;",  # For GIN indexes on btree types
         "CREATE EXTENSION IF NOT EXISTS unaccent;",  # For accent-insensitive search
     ]
-    
+
     for extension_sql in extensions:
         try:
             db.execute(text(extension_sql))
             logger.info(f"Created extension: {extension_sql}")
         except Exception as e:
             logger.warning(f"Could not create extension {extension_sql}: {e}")
-    
+
     db.commit()
 
 
@@ -34,45 +35,45 @@ def create_custom_indexes(db: Session):
         CREATE INDEX IF NOT EXISTS ix_questions_fulltext_search 
         ON questions USING gin(to_tsvector('english', title || ' ' || description));
         """,
-        
+
         # Trigram index for fuzzy search on question titles
         """
         CREATE INDEX IF NOT EXISTS ix_questions_title_trigram 
         ON questions USING gin(title gin_trgm_ops);
         """,
-        
+
         # Trigram index for user search
         """
         CREATE INDEX IF NOT EXISTS ix_users_username_trigram 
         ON users USING gin(username gin_trgm_ops);
         """,
-        
+
         # Partial index for active users only
         """
         CREATE INDEX IF NOT EXISTS ix_users_active_only 
         ON users (username, email) WHERE is_active = true;
         """,
-        
+
         # Partial index for unread notifications only
         """
         CREATE INDEX IF NOT EXISTS ix_notifications_unread_only 
         ON notifications (user_id, created_at DESC) WHERE is_read = false;
         """,
-        
+
         # Index for question statistics updates
         """
         CREATE INDEX IF NOT EXISTS ix_questions_stats_update 
         ON questions (id, answer_count, vote_score, view_count);
         """,
     ]
-    
+
     for index_sql in custom_indexes:
         try:
             db.execute(text(index_sql))
             logger.info("Created custom index successfully")
         except Exception as e:
             logger.warning(f"Could not create custom index: {e}")
-    
+
     db.commit()
 
 
@@ -99,7 +100,7 @@ def create_database_functions(db: Session):
         END;
         $$ LANGUAGE plpgsql;
         """,
-        
+
         # Function to update user reputation
         """
         CREATE OR REPLACE FUNCTION update_user_reputation(user_id_param INTEGER)
@@ -120,7 +121,7 @@ def create_database_functions(db: Session):
         END;
         $$ LANGUAGE plpgsql;
         """,
-        
+
         # Function for full-text search
         """
         CREATE OR REPLACE FUNCTION search_questions(search_term TEXT)
@@ -146,14 +147,14 @@ def create_database_functions(db: Session):
         $$ LANGUAGE plpgsql;
         """,
     ]
-    
+
     for function_sql in functions:
         try:
             db.execute(text(function_sql))
             logger.info("Created database function successfully")
         except Exception as e:
             logger.warning(f"Could not create database function: {e}")
-    
+
     db.commit()
 
 
@@ -187,7 +188,7 @@ def create_database_triggers(db: Session):
             AFTER INSERT OR UPDATE OR DELETE ON answers
             FOR EACH ROW EXECUTE FUNCTION trigger_update_question_stats();
         """,
-        
+
         # Trigger to update user reputation when votes change
         """
         CREATE OR REPLACE FUNCTION trigger_update_user_reputation()
@@ -213,14 +214,14 @@ def create_database_triggers(db: Session):
             FOR EACH ROW EXECUTE FUNCTION trigger_update_user_reputation();
         """,
     ]
-    
+
     for trigger_sql in triggers:
         try:
             db.execute(text(trigger_sql))
             logger.info("Created database trigger successfully")
         except Exception as e:
             logger.warning(f"Could not create database trigger: {e}")
-    
+
     db.commit()
 
 
@@ -231,7 +232,7 @@ def optimize_postgresql_settings(db: Session):
         "SET track_activity_query_size = 2048;",
         "SET log_min_duration_statement = 1000;",  # Log slow queries
     ]
-    
+
     for setting in settings:
         try:
             db.execute(text(setting))
@@ -243,14 +244,14 @@ def optimize_postgresql_settings(db: Session):
 def setup_database_optimizations(db: Session):
     """Set up all database optimizations."""
     logger.info("Setting up database optimizations...")
-    
+
     try:
         create_postgresql_extensions(db)
         create_custom_indexes(db)
         create_database_functions(db)
         create_database_triggers(db)
         optimize_postgresql_settings(db)
-        
+
         logger.info("✅ Database optimizations completed successfully!")
     except Exception as e:
         logger.error(f"❌ Error setting up database optimizations: {e}")

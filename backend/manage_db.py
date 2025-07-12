@@ -5,18 +5,17 @@ Provides utilities for database operations, migrations, and seeding.
 """
 import argparse
 import sys
-import os
 from pathlib import Path
 
 # Add the current directory to Python path
 sys.path.append(str(Path(__file__).parent))
 
-from app.database import engine, create_tables, drop_tables, check_database_connection, get_db
-from app.models.base import Base
-from app.config import settings
-from app.seed_data import seed_database
-from app.database_optimizations import setup_database_optimizations
 import logging
+
+from app.config import settings
+from app.database import check_database_connection, create_tables, drop_tables, get_db
+from app.database_optimizations import setup_database_optimizations
+from app.seed_data import seed_database
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -135,9 +134,9 @@ def main():
         "--revision", "-r",
         help="Revision identifier (for downgrade command)"
     )
-    
+
     args = parser.parse_args()
-    
+
     if args.command == "create-tables":
         create_database_tables()
     elif args.command == "drop-tables":

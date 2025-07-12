@@ -54,6 +54,11 @@ class Settings(BaseSettings):
         default=["http://localhost:3000", "http://localhost:8000"],
         description="CORS allowed origins"
     )
+
+    # JWT Configuration
+    secret_key: str = Field(description="Secret key for JWT tokens")
+    algorithm: str = Field(default="HS256", description="JWT algorithm")
+    access_token_expire_minutes: int = Field(default=30, description="Token expiration in minutes")
     
     class Config:
         env_file = ".env"
