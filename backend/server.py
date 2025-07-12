@@ -16,6 +16,11 @@ from database import check_database_connection, create_tables
 
 # Import API routes
 from services.auth_service import router as auth_router
+from services.question_service import router as question_router
+from services.answer_service import router as answer_router
+from services.vote_service import router as vote_router
+from services.tag_service import router as tag_router
+from services.user_service import router as user_router
 
 # from services.user_service import router as user_router
 # from services.question_service import router as question_router
@@ -97,10 +102,11 @@ async def health_check():
 
 # Include API routers
 app.include_router(auth_router, tags=["Authentication"])
-# app.include_router(user_router, prefix=settings.api_v1_prefix + "/users", tags=["Users"])
-# app.include_router(question_router, prefix=settings.api_v1_prefix + "/questions", tags=["Questions"])
-# app.include_router(answer_router, prefix=settings.api_v1_prefix + "/answers", tags=["Answers"])
-# app.include_router(tag_router, prefix=settings.api_v1_prefix + "/tags", tags=["Tags"])
+app.include_router(question_router, tags=["Questions"])
+app.include_router(answer_router, tags=["Answers"])
+app.include_router(vote_router, tags=["Votes"])
+app.include_router(tag_router, tags=["Tags"])
+app.include_router(user_router, tags=["Users"])
 # app.include_router(notification_router, prefix=settings.api_v1_prefix + "/notifications", tags=["Notifications"])
 
 
