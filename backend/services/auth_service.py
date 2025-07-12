@@ -162,7 +162,7 @@ async def login_user(
                 detail="Incorrect username or password",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        
+ 
         # Check if user is active
         if not user.is_active:
             raise HTTPException(

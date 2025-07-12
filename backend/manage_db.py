@@ -5,7 +5,6 @@ Provides utilities for database operations, migrations, and seeding.
 """
 import argparse
 import sys
-import os
 from pathlib import Path
 
 # Add the current directory to Python path
@@ -135,9 +134,9 @@ def main():
         "--revision", "-r",
         help="Revision identifier (for downgrade command)"
     )
-    
+
     args = parser.parse_args()
-    
+
     if args.command == "create-tables":
         create_database_tables()
     elif args.command == "drop-tables":
