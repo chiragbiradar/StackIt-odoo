@@ -2,7 +2,8 @@
 Answer Service for StackIt Q&A platform.
 Handles answer creation and acceptance.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import List
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session, joinedload
 
 # Import database dependencies
@@ -98,6 +99,68 @@ async def create_answer(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error creating answer: {str(e)}"
+        ) from e
+
+
+@router.get("/questions/{question_id}/answers", response_model=List[AnswerResponse])
+async def get_answers_for_question(
+    question_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Get all answers for a specific question.
+
+    - **question_id**: ID of the question to get answers for
+    """
+    try:
+        # Check if question exists
+        question = db.query(Question).filter(Question.id == question_id).first()
+
+        if not question:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Question not found"
+            )
+
+        # Get answers with authors, ordered by acceptance status and vote score
+        answers = db.query(Answer).options(
+            joinedload(Answer.author)
+        ).filter(Answer.question_id == question_id).order_by(
+            Answer.is_accepted.desc(),  # Accepted answers first
+            Answer.vote_score.desc(),   # Then by vote score
+            Answer.created_at.asc()     # Then by creation time
+        ).all()
+
+        # Build response list
+        answer_responses = []
+        for answer in answers:
+            author_info = AuthorInfo(
+                id=answer.author.id,
+                username=answer.author.username,
+                full_name=answer.author.full_name,
+                reputation_score=answer.author.reputation_score
+            )
+
+            answer_responses.append(AnswerResponse(
+                id=answer.id,
+                content=answer.content,
+                vote_score=answer.vote_score,
+                comment_count=answer.comment_count,
+                is_accepted=answer.is_accepted,
+                question_id=answer.question_id,
+                author=author_info,
+                created_at=answer.created_at,
+                updated_at=answer.updated_at
+            ))
+
+        return answer_responses
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching answers: {str(e)}"
         ) from e
 
 
