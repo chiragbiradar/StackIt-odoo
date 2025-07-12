@@ -16,6 +16,7 @@ from database import check_database_connection, create_tables
 
 # Import API routes
 from services.auth_service import router as auth_router
+from services.user_service import router as user_router
 
 # from services.user_service import router as user_router
 # from services.question_service import router as question_router
@@ -96,7 +97,8 @@ async def health_check():
 
 
 # Include API routers
-app.include_router(auth_router, tags=["Authentication"])
+app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
+app.include_router(user_router, prefix="/users", tags=["Users"])
 # app.include_router(user_router, prefix=settings.api_v1_prefix + "/users", tags=["Users"])
 # app.include_router(question_router, prefix=settings.api_v1_prefix + "/questions", tags=["Questions"])
 # app.include_router(answer_router, prefix=settings.api_v1_prefix + "/answers", tags=["Answers"])
