@@ -1,37 +1,31 @@
 """
 Database connection and session management.
 """
-from sqlalchemy import create_engine, event
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.pool import StaticPool
+from sqlalchemy import create_engine, event, text
+from sqlalchemy.orm import sessionmaker
 import logging
 
-from .config import get_database_url, settings
+from utils.config import settings
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Database URL
-DATABASE_URL = get_database_url()
-
 # Create SQLAlchemy engine
 engine = create_engine(
-    DATABASE_URL,
+    settings.database_url,
     pool_pre_ping=True,  # Verify connections before use
     pool_recycle=300,    # Recycle connections every 5 minutes
-    echo=settings.debug,  # Log SQL queries in debug mode
 )
 
 # Create SessionLocal class
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Create Base class for models
-Base = declarative_base()
+# Import Base from models (don't create a new one)
+from .models.base import Base
 
 
-def get_db() -> Session:
+def get_db():
     """
     Dependency function to get database session.
     Used with FastAPI's Depends() for dependency injection.
@@ -50,8 +44,20 @@ def get_db() -> Session:
 def create_tables():
     """Create all database tables."""
     try:
+        # Import all models to ensure they are registered with Base.metadata
+        from .models import (  # noqa: F401
+            User, Question, Answer, Tag, QuestionTag,
+            Vote, Notification, Comment
+        )
+
+        logger.info("Creating database tables...")
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables created successfully")
+
+        # Log which tables were created
+        table_names = [table.name for table in Base.metadata.tables.values()]
+        logger.info(f"Created tables: {', '.join(table_names)}")
+
     except Exception as e:
         logger.error(f"Error creating database tables: {e}")
         raise
@@ -71,7 +77,7 @@ def drop_tables():
 @event.listens_for(engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record):
     """Set up database-specific configurations on connection."""
-    if "postgresql" in DATABASE_URL:
+    if "postgresql" in settings.database_url:
         # PostgreSQL specific configurations can be added here
         pass
 
@@ -81,7 +87,8 @@ def check_database_connection() -> bool:
     """Check if database connection is healthy."""
     try:
         with engine.connect() as connection:
-            connection.execute("SELECT 1")
+            connection.execute(text("SELECT 1"))
+        logger.info("Database connection check successful")
         return True
     except Exception as e:
         logger.error(f"Database connection check failed: {e}")

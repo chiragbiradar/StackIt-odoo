@@ -84,7 +84,7 @@ class Answer(BaseModel):
         # Index for accepted answers
         Index('ix_answers_accepted', 'is_accepted', 'question_id'),
         # Index for answers by vote score
-        Index('ix_answers_vote_score_desc', 'vote_score', postgresql_using='btree'),
+        Index('ix_answers_vote_score_desc', 'vote_score'),
         # Index for user's answers
         Index('ix_answers_author_created', 'author_id', 'created_at'),
     )

@@ -99,13 +99,12 @@ class Question(BaseModel):
         # Composite index for listing questions by creation date and status
         Index('ix_questions_created_status', 'created_at', 'is_closed'),
         # Index for popular questions (by vote score)
-        Index('ix_questions_vote_score_desc', 'vote_score', postgresql_using='btree'),
+        Index('ix_questions_vote_score_desc', 'vote_score'),
         # Index for questions with accepted answers
         Index('ix_questions_accepted_answers', 'has_accepted_answer', 'created_at'),
         # Index for author's questions
         Index('ix_questions_author_created', 'author_id', 'created_at'),
-        # Full-text search index on title (PostgreSQL specific)
-        Index('ix_questions_title_search', 'title', postgresql_using='gin', postgresql_ops={'title': 'gin_trgm_ops'}),
+        # Note: Advanced PostgreSQL indexes (GIN, trigram) can be added later via migrations
     )
 
     # Computed properties

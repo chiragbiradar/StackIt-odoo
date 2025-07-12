@@ -117,10 +117,20 @@ class User(BaseModel):
         cascade="all, delete-orphan",
         lazy="dynamic"
     )
-    notifications = relationship(
-        "Notification", 
-        back_populates="user", 
+    # Notifications received by this user
+    received_notifications = relationship(
+        "Notification",
+        foreign_keys="Notification.user_id",
+        back_populates="recipient",
         cascade="all, delete-orphan",
+        lazy="dynamic"
+    )
+
+    # Notifications triggered by this user
+    triggered_notifications = relationship(
+        "Notification",
+        foreign_keys="Notification.triggered_by_user_id",
+        back_populates="triggered_by",
         lazy="dynamic"
     )
     comments = relationship(
@@ -137,7 +147,7 @@ class User(BaseModel):
         # Index for user search by username and email
         Index('ix_users_username_email', 'username', 'email'),
         # Index for reputation-based queries
-        Index('ix_users_reputation_desc', 'reputation_score', postgresql_using='btree'),
+        Index('ix_users_reputation_desc', 'reputation_score'),
     )
 
     def __repr__(self):

@@ -83,8 +83,8 @@ class Notification(BaseModel):
     )
     
     # Relationships
-    user = relationship("User", back_populates="notifications", foreign_keys=[user_id])
-    triggered_by_user = relationship("User", foreign_keys=[triggered_by_user_id])
+    recipient = relationship("User", back_populates="received_notifications", foreign_keys=[user_id])
+    triggered_by = relationship("User", back_populates="triggered_notifications", foreign_keys=[triggered_by_user_id])
     related_question = relationship("Question", foreign_keys=[related_question_id])
     related_answer = relationship("Answer", foreign_keys=[related_answer_id])
     related_comment = relationship("Comment", foreign_keys=[related_comment_id])
