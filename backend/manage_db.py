@@ -10,12 +10,12 @@ from pathlib import Path
 # Add the current directory to Python path
 sys.path.append(str(Path(__file__).parent))
 
+from database import engine, create_tables, drop_tables, check_database_connection, get_db
+from database.models.base import Base
+from utils.config import settings
+from database.seed_data import seed_database
+from database.database_optimizations import setup_database_optimizations
 import logging
-
-from app.config import settings
-from app.database import check_database_connection, create_tables, drop_tables, get_db
-from app.database_optimizations import setup_database_optimizations
-from app.seed_data import seed_database
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
