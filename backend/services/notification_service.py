@@ -4,8 +4,10 @@ Handles real-time notifications using py-pg-notify.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
 
 # Import database dependencies
+from database import get_db
 from database.models import User
 
 # Import auth dependencies
@@ -23,7 +25,8 @@ router = APIRouter()
 
 @router.get("/")
 async def get_notifications(
-    current_user: User = Depends(get_current_user_dependency)
+    current_user: User = Depends(get_current_user_dependency),
+    db: Session = Depends(get_db)
 ):
     """
     Get all notifications for the current user.
@@ -33,7 +36,7 @@ async def get_notifications(
     - Total count and unread count
     """
     try:
-        result = get_user_notifications(current_user.email)
+        result = get_user_notifications(current_user.username, db)
         return result
 
     except Exception as e:
@@ -45,8 +48,9 @@ async def get_notifications(
 
 @router.post("/{notification_id}/read")
 async def mark_notification_read(
-    notification_id: str,
-    current_user: User = Depends(get_current_user_dependency)
+    notification_id: int,
+    current_user: User = Depends(get_current_user_dependency),
+    db: Session = Depends(get_db)
 ):
     """
     Mark a specific notification as read.
@@ -55,7 +59,7 @@ async def mark_notification_read(
     - notification_id: ID of the notification to mark as read
     """
     try:
-        result = mark_notification_as_read(current_user.email, notification_id)
+        result = mark_notification_as_read(current_user.username, notification_id, db)
         return result
 
     except Exception as e:
@@ -67,13 +71,14 @@ async def mark_notification_read(
 
 @router.post("/read-all")
 async def mark_all_notifications_read(
-    current_user: User = Depends(get_current_user_dependency)
+    current_user: User = Depends(get_current_user_dependency),
+    db: Session = Depends(get_db)
 ):
     """
     Mark all notifications as read for the current user.
     """
     try:
-        result = mark_all_notifications_as_read(current_user.email)
+        result = mark_all_notifications_as_read(current_user.username, db)
         return result
 
     except Exception as e:
@@ -85,7 +90,8 @@ async def mark_all_notifications_read(
 
 @router.get("/unread-count")
 async def get_unread_count(
-    current_user: User = Depends(get_current_user_dependency)
+    current_user: User = Depends(get_current_user_dependency),
+    db: Session = Depends(get_db)
 ):
     """
     Get the count of unread notifications for the current user.
@@ -94,7 +100,7 @@ async def get_unread_count(
     - unread_count: Number of unread notifications
     """
     try:
-        result = get_user_notifications(current_user.email)
+        result = get_user_notifications(current_user.username, db)
         return {"unread_count": result.get("unread_count", 0)}
 
     except Exception as e:
@@ -106,8 +112,9 @@ async def get_unread_count(
 
 @router.delete("/{notification_id}")
 async def delete_notification(
-    notification_id: str,
-    current_user: User = Depends(get_current_user_dependency)
+    notification_id: int,
+    current_user: User = Depends(get_current_user_dependency),
+    db: Session = Depends(get_db)
 ):
     """
     Delete a specific notification.
@@ -116,7 +123,7 @@ async def delete_notification(
     - notification_id: ID of the notification to delete
     """
     try:
-        notification_service.remove_notification(current_user.email, notification_id)
+        notification_service.remove_notification(current_user.username, notification_id, db)
         return {"msg": "Notification deleted successfully"}
 
     except Exception as e:
@@ -128,13 +135,14 @@ async def delete_notification(
 
 @router.delete("/")
 async def delete_all_notifications(
-    current_user: User = Depends(get_current_user_dependency)
+    current_user: User = Depends(get_current_user_dependency),
+    db: Session = Depends(get_db)
 ):
     """
     Delete all notifications for the current user.
     """
     try:
-        notification_service.remove_all_notifications(current_user.email)
+        notification_service.remove_all_notifications(current_user.username, db)
         return {"msg": "All notifications deleted successfully"}
 
     except Exception as e:

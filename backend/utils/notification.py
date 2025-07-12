@@ -5,12 +5,12 @@ import re
 from datetime import datetime, timezone
 from typing import List
 
-from diskcache import Cache
-from py_pg_notify import Listener, Notifier, PGConfig
+from py_pg_notify import Listener, Notifier
 from py_pg_notify import Notification as PGNotification
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from database.models import Answer, Question, User
+from database.models import Answer, NotificationType, Question, User
 from database.models import Notification as NotificationModel
 
 # Database configuration - using environment variables for now
@@ -27,20 +27,11 @@ CONTENT_PREVIEW_LENGTH = 100
 logger = logging.getLogger(__name__)
 
 class StackItNotificationService:
-    """StackIt notification service using py-pg-notify for real-time notifications."""
+    """Simplified StackIt notification service using PostgreSQL only."""
 
     def __init__(self):
-        self.cache = Cache(directory=os.getenv("CACHE_DIR", "./cache"))
-        self.expire = 259200  # 3 days
-        self.pg_config = PGConfig(
-            user=user,
-            password=password,
-            host=host,
-            port=port,
-            dbname=db
-        )
-        self.listener = None
-        self.notifier = None
+        # Simple PostgreSQL-only approach
+        pass
 
     async def initialize(self):
         """Initialize the notification service with triggers and listeners."""
@@ -146,9 +137,7 @@ class StackItNotificationService:
         try:
             payload = json.loads(msg.payload) if msg.payload else {}
             logger.info(f"Answer notification received: {payload}")
-
-            # Store in cache for retrieval
-            await self.store_notification(payload, "answer_to_question")
+            # Notifications are stored directly in database by helper functions
 
         except Exception as e:
             logger.error(f"Error handling answer notification: {e}")
@@ -158,9 +147,7 @@ class StackItNotificationService:
         try:
             payload = json.loads(msg.payload) if msg.payload else {}
             logger.info(f"Comment notification received: {payload}")
-
-            # Store in cache for retrieval
-            await self.store_notification(payload, "comment_on_answer")
+            # Notifications are stored directly in database by helper functions
 
         except Exception as e:
             logger.error(f"Error handling comment notification: {e}")
@@ -170,123 +157,192 @@ class StackItNotificationService:
         try:
             payload = json.loads(msg.payload) if msg.payload else {}
             logger.info(f"Mention notification received: {payload}")
-
-            # Store in cache for retrieval
-            await self.store_notification(payload, "mention")
+            # Notifications are stored directly in database by helper functions
 
         except Exception as e:
             logger.error(f"Error handling mention notification: {e}")
 
-    async def store_notification(self, payload: dict, notification_type: str):
-        """Store notification in cache and database."""
+# Removed store_notification method - notifications are stored directly in database by helper functions
+
+    def get_notifications(self, username: str, db: Session) -> List[dict]:
+        """Get all notifications for a user by username from PostgreSQL."""
         try:
-            user_email = payload.get("user_email")
-            if not user_email:
-                return
+            # Get user by username
+            user = db.query(User).filter(User.username == username).first()
+            if not user:
+                return []
 
-            # Create unique key for cache using email
-            notification_id = f"{user_email}_{notification_type}_{payload.get('id', '')}"
+            # Get notifications from database with error handling
+            try:
 
-            # Store in cache
-            self.cache.set(
-                notification_id,
-                value={
-                    "type": notification_type,
-                    "payload": payload,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "read": False
-                },
-                expire=self.expire
-            )
+                # Use raw SQL to avoid enum conversion issues
+                result_proxy = db.execute(text("""
+                    SELECT id, title, message, notification_type, user_id,
+                           triggered_by_user_id, related_question_id, related_answer_id,
+                           related_comment_id, is_read, created_at, updated_at
+                    FROM notifications
+                    WHERE user_id = :user_id
+                    ORDER BY created_at DESC
+                """), {"user_id": user.id})
 
-            logger.info(f"Stored notification for user {user_email}: {notification_type}")
+                notifications = result_proxy.fetchall()
+
+            except Exception as e:
+                logger.error(f"Database query error: {e}")
+                return []
+
+            # Convert to dict format with robust enum handling
+            result = []
+            for row in notifications:
+                try:
+                    # Handle raw SQL result - notification_type is now a string
+                    notification_type_str = row.notification_type
+                    logger.debug(f"Processing notification {row.id}, type: {notification_type_str}")
+
+                    # Convert lowercase database value to uppercase display value
+                    type_mapping = {
+                        "mention": "MENTION",
+                        "answer_to_question": "ANSWER_TO_QUESTION",
+                        "comment_on_answer": "COMMENT_ON_ANSWER",
+                        "answer_accepted": "ANSWER_ACCEPTED",
+                        "vote_received": "VOTE_RECEIVED"
+                    }
+                    type_str = type_mapping.get(notification_type_str, str(notification_type_str).upper())
+
+                    # Handle timestamp conversion safely
+                    if hasattr(row.created_at, 'isoformat'):
+                        timestamp = row.created_at.isoformat()
+                    else:
+                        # If it's already a string, use it as is
+                        timestamp = str(row.created_at)
+
+                    result.append({
+                        "id": row.id,
+                        "type": type_str,
+                        "title": row.title,
+                        "message": row.message,
+                        "read": row.is_read,
+                        "timestamp": timestamp,
+                        "triggered_by_user_id": row.triggered_by_user_id,
+                        "related_question_id": row.related_question_id,
+                        "related_answer_id": row.related_answer_id,
+                        "related_comment_id": row.related_comment_id
+                    })
+
+                except Exception as enum_error:
+                    logger.error(f"Error processing notification {row.id}: {enum_error}")
+                    # Skip this notification but continue with others
+                    continue
+
+            return result
 
         except Exception as e:
-            logger.error(f"Error storing notification: {e}")
-
-    def get_notifications(self, user_email: str) -> List[dict]:
-        """Get all notifications for a user by email."""
-        try:
-            notifications = []
-            keys = list(self.cache.iterkeys())
-
-            for key in keys:
-                if user_email in key:
-                    notification = self.cache.get(key)
-                    if notification:
-                        notifications.append(notification)
-
-            # Sort by timestamp (newest first)
-            notifications.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
-            return notifications
-
-        except Exception as e:
-            logger.error(f"Error getting notifications for user {user_email}: {e}")
+            logger.error(f"Error getting notifications for user {username}: {e}")
             return []
 
-    def mark_notification_as_read(self, user_email: str, notification_id: str) -> bool:
-        """Mark a specific notification as read."""
+    def mark_notification_as_read(self, username: str, notification_id: int, db: Session) -> bool:
+        """Mark a specific notification as read in PostgreSQL."""
         try:
-            cache_key = f"{user_email}_{notification_id}"
-            notification = self.cache.get(cache_key)
+            # Get user by username
+            user = db.query(User).filter(User.username == username).first()
+            if not user:
+                return False
+
+            # Update notification
+            notification = db.query(NotificationModel).filter(
+                NotificationModel.id == notification_id,
+                NotificationModel.user_id == user.id
+            ).first()
 
             if notification:
-                notification["read"] = True
-                self.cache.set(cache_key, notification, expire=self.expire)
+                notification.is_read = True
+                notification.updated_at = datetime.now(timezone.utc)
+                db.commit()
                 return True
             return False
 
         except Exception as e:
             logger.error(f"Error marking notification as read: {e}")
+            db.rollback()
             return False
 
-    def mark_all_notifications_as_read(self, user_email: str) -> int:
-        """Mark all notifications as read for a user."""
+    def mark_all_notifications_as_read(self, username: str, db: Session) -> int:
+        """Mark all notifications as read for a user in PostgreSQL."""
         try:
-            count = 0
-            keys = list(self.cache.iterkeys())
+            # Get user by username
+            user = db.query(User).filter(User.username == username).first()
+            if not user:
+                return 0
 
-            for key in keys:
-                if user_email in key:
-                    notification = self.cache.get(key)
-                    if notification and not notification.get("read", False):
-                        notification["read"] = True
-                        self.cache.set(key, notification, expire=self.expire)
-                        count += 1
-
+            # Update all unread notifications
+            count = db.query(NotificationModel).filter(
+                NotificationModel.user_id == user.id,
+                ~NotificationModel.is_read
+            ).update({
+                'is_read': True,
+                'updated_at': datetime.now(timezone.utc)
+            })
+            db.commit()
             return count
 
         except Exception as e:
             logger.error(f"Error marking all notifications as read: {e}")
+            db.rollback()
             return 0
 
-    def remove_notification(self, user_email: str, notification_id: str):
-        """Remove a specific notification."""
+    def remove_notification(self, username: str, notification_id: int, db: Session):
+        """Remove a specific notification from PostgreSQL."""
         try:
-            cache_key = f"{user_email}_{notification_id}"
-            if self.cache.get(cache_key):
-                del self.cache[cache_key]
+            # Get user by username
+            user = db.query(User).filter(User.username == username).first()
+            if not user:
+                return
+
+            # Delete notification
+            notification = db.query(NotificationModel).filter(
+                NotificationModel.id == notification_id,
+                NotificationModel.user_id == user.id
+            ).first()
+
+            if notification:
+                db.delete(notification)
+                db.commit()
+
         except Exception as e:
             logger.error(f"Error removing notification: {e}")
+            db.rollback()
 
-    def remove_all_notifications(self, user_email: str):
-        """Remove all notifications for a user."""
+    def remove_all_notifications(self, username: str, db: Session):
+        """Remove all notifications for a user from PostgreSQL."""
         try:
-            keys = list(self.cache.iterkeys())
-            for key in keys:
-                if user_email in key:
-                    del self.cache[key]
+            # Get user by username
+            user = db.query(User).filter(User.username == username).first()
+            if not user:
+                return
+
+            # Delete all notifications
+            db.query(NotificationModel).filter(
+                NotificationModel.user_id == user.id
+            ).delete()
+            db.commit()
+
         except Exception as e:
             logger.error(f"Error removing all notifications: {e}")
+            db.rollback()
 
     async def send_custom_notification(self, channel: str, payload: dict):
         """Send a custom notification to a specific channel."""
         try:
             async with Notifier(self.pg_config) as notifier:
-                await notifier.notify(channel, json.dumps(payload))
+                # Ensure payload is properly escaped for PostgreSQL
+                payload_str = json.dumps(payload, ensure_ascii=True)
+                logger.debug(f"Sending notification to {channel}: {payload_str}")
+                await notifier.notify(channel, payload_str)
                 logger.info(f"Sent custom notification to {channel}")
         except Exception as e:
-            logger.error(f"Error sending custom notification: {e}")
+            logger.error(f"Error sending custom notification to {channel}: {e}")
+            logger.error(f"Payload was: {payload}")
+            # Continue without failing - store in cache only
 
     async def close(self):
         """Close the notification service."""
@@ -308,7 +364,7 @@ async def create_database_notification(
     user_id: int,
     title: str,
     message: str,
-    notification_type: str,
+    notification_type: NotificationType,
     **kwargs
 ) -> NotificationModel:
     """Create a notification in the database."""
@@ -343,10 +399,10 @@ async def create_database_notification(
 notification_service = StackItNotificationService()
 
 # API functions for backward compatibility and easy integration
-def get_user_notifications(user_email: str) -> dict:
-    """Get all notifications for a user by email."""
+def get_user_notifications(username: str, db: Session) -> dict:
+    """Get all notifications for a user by username."""
     try:
-        notifications = notification_service.get_notifications(user_email)
+        notifications = notification_service.get_notifications(username, db)
         return {
             "notifications": notifications,
             "count": len(notifications),
@@ -356,10 +412,10 @@ def get_user_notifications(user_email: str) -> dict:
         logger.error(f"Error getting user notifications: {e}")
         return {"error": "Failed to get notifications"}
 
-def mark_notification_as_read(user_email: str, notification_id: str) -> dict:
+def mark_notification_as_read(username: str, notification_id: int, db: Session) -> dict:
     """Mark a specific notification as read."""
     try:
-        success = notification_service.mark_notification_as_read(user_email, notification_id)
+        success = notification_service.mark_notification_as_read(username, notification_id, db)
         if success:
             return {"msg": "Notification marked as read"}
         else:
@@ -368,10 +424,10 @@ def mark_notification_as_read(user_email: str, notification_id: str) -> dict:
         logger.error(f"Error marking notification as read: {e}")
         return {"error": "Failed to mark notification as read"}
 
-def mark_all_notifications_as_read(user_email: str) -> dict:
+def mark_all_notifications_as_read(username: str, db: Session) -> dict:
     """Mark all notifications as read for a user."""
     try:
-        count = notification_service.mark_all_notifications_as_read(user_email)
+        count = notification_service.mark_all_notifications_as_read(username, db)
         return {"msg": f"Marked {count} notifications as read"}
     except Exception as e:
         logger.error(f"Error marking all notifications as read: {e}")
@@ -395,7 +451,7 @@ async def notify_answer_to_question(db: Session, question_id: int, answer_author
             user_id=question.author_id,
             title="New Answer to Your Question",
             message=f"{answer_author.username} answered your question: {question.title}",
-            notification_type="answer_to_question",
+            notification_type=NotificationType.ANSWER_TO_QUESTION,
             triggered_by_user_id=answer_author_id,
             related_question_id=question_id
         )
@@ -405,19 +461,8 @@ async def notify_answer_to_question(db: Session, question_id: int, answer_author
         if not question_author:
             return
 
-        # Send real-time notification
-        await notification_service.send_custom_notification(
-            "stackit_answer_notifications",
-            {
-                "user_email": question_author.email,
-                "type": "answer_to_question",
-                "title": "New Answer to Your Question",
-                "message": f"{answer_author.username} answered your question: {question.title}",
-                "triggered_by": answer_author.username,
-                "question_id": question_id,
-                "question_title": question.title
-            }
-        )
+        # Notification is already stored in database by create_database_notification above
+        logger.info(f"Answer notification sent to {question_author.username}")
 
     except Exception as e:
         logger.error(f"Error sending answer notification: {e}")
@@ -439,7 +484,7 @@ async def notify_comment_on_answer(db: Session, answer_id: int, comment_author_i
             user_id=answer.author_id,
             title="New Comment on Your Answer",
             message=f"{comment_author.username} commented on your answer",
-            notification_type="comment_on_answer",
+            notification_type=NotificationType.COMMENT_ON_ANSWER,
             triggered_by_user_id=comment_author_id,
             related_answer_id=answer_id
         )
@@ -453,7 +498,7 @@ async def notify_comment_on_answer(db: Session, answer_id: int, comment_author_i
         await notification_service.send_custom_notification(
             "stackit_comment_notifications",
             {
-                "user_email": answer_author.email,
+                "username": answer_author.username,
                 "type": "comment_on_answer",
                 "title": "New Comment on Your Answer",
                 "message": f"{comment_author.username} commented on your answer",
@@ -488,21 +533,19 @@ async def notify_mention(
             user_id=mentioned_user.id,
             title="You Were Mentioned",
             message=f"{mentioning_user.username} mentioned you in a post",
-            notification_type="mention",
+            notification_type=NotificationType.MENTION,
             triggered_by_user_id=mentioning_user_id,
             **related_ids
         )
 
-        # Send real-time notification
         await notification_service.send_custom_notification(
             "stackit_mention_notifications",
             {
-                "user_email": mentioned_user.email,
+                "username": mentioned_user.username,
                 "type": "mention",
                 "title": "You Were Mentioned",
-                "message": f"{mentioning_user.username} mentioned you in a post",
+                "message": f"{mentioning_user.username} mentioned you",
                 "triggered_by": mentioning_user.username,
-                "content_preview": content[:CONTENT_PREVIEW_LENGTH] + "..." if len(content) > CONTENT_PREVIEW_LENGTH else content,
                 "question_id": related_ids.get('related_question_id'),
                 "answer_id": related_ids.get('related_answer_id'),
                 "comment_id": related_ids.get('related_comment_id')

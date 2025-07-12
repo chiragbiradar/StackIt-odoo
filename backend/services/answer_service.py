@@ -3,7 +3,8 @@ Answer Service for StackIt Q&A platform.
 Handles answer creation and acceptance.
 """
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
 # Import database dependencies
@@ -11,10 +12,22 @@ from database import get_db
 from database.models import Answer, Question, User
 
 # Import schemas
-from schemas.answer import AcceptAnswerResponse, AnswerCreate, AnswerResponse, AuthorInfo
+from schemas.answer import (
+    AcceptAnswerResponse,
+    AnswerCreate,
+    AnswerResponse,
+    AuthorInfo,
+)
 
 # Import authentication
 from services.auth_service import get_current_user_dependency
+
+# Import notification functions
+from utils.notification import (
+    extract_mentions,
+    notify_answer_to_question,
+    notify_mention,
+)
 
 # Create router
 router = APIRouter()
@@ -28,49 +41,73 @@ async def create_answer(
 ):
     """
     Create a new answer for a question.
-    
+
     - **content**: Answer content (minimum 20 characters)
     - **question_id**: ID of the question being answered
     """
     try:
         # Check if question exists and is not closed
         question = db.query(Question).filter(Question.id == answer_data.question_id).first()
-        
+
         if not question:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Question not found"
             )
-        
+
         if question.is_closed:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Cannot answer a closed question"
             )
-        
+
         # Create answer
         new_answer = Answer(
             content=answer_data.content,
             question_id=answer_data.question_id,
             author_id=current_user.id
         )
-        
+
         db.add(new_answer)
-        
+
         # Update question answer count
         question.answer_count += 1
-        
+
         # Update user's answer count
         current_user.answers_count += 1
-        
+
         db.commit()
         db.refresh(new_answer)
-        
+
+        # Handle notifications
+        try:
+            # Send answer notification to question author
+            await notify_answer_to_question(
+                db=db,
+                question_id=answer_data.question_id,
+                answer_author_id=current_user.id
+            )
+
+            # Handle mention notifications
+            mentions = extract_mentions(answer_data.content)
+            for username in mentions:
+                await notify_mention(
+                    db=db,
+                    mentioned_username=username,
+                    mentioning_user_id=current_user.id,
+                    content=answer_data.content,
+                    related_question_id=answer_data.question_id,
+                    related_answer_id=new_answer.id
+                )
+        except Exception as e:
+            # Log error but don't fail the answer creation
+            print(f"Error sending notifications: {e}")
+
         # Load the answer with author for response
         answer_with_author = db.query(Answer).options(
             joinedload(Answer.author)
         ).filter(Answer.id == new_answer.id).first()
-        
+
         # Build response
         author_info = AuthorInfo(
             id=answer_with_author.author.id,
@@ -78,7 +115,7 @@ async def create_answer(
             full_name=answer_with_author.author.full_name,
             reputation_score=answer_with_author.author.reputation_score
         )
-        
+
         return AnswerResponse(
             id=answer_with_author.id,
             content=answer_with_author.content,
@@ -90,7 +127,7 @@ async def create_answer(
             created_at=answer_with_author.created_at,
             updated_at=answer_with_author.updated_at
         )
-        
+
     except HTTPException:
         db.rollback()
         raise
@@ -172,7 +209,7 @@ async def accept_answer(
 ):
     """
     Accept an answer (only question owner can accept).
-    
+
     - **answer_id**: ID of the answer to accept
     """
     try:
@@ -181,57 +218,57 @@ async def accept_answer(
             joinedload(Answer.question),
             joinedload(Answer.author)
         ).filter(Answer.id == answer_id).first()
-        
+
         if not answer:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Answer not found"
             )
-        
+
         # Check if current user is the question owner
         if answer.question.author_id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only the question author can accept answers"
             )
-        
+
         # Check if question is closed
         if answer.question.is_closed:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Cannot accept answers for a closed question"
             )
-        
+
         # If there's already an accepted answer, unaccept it
         if answer.question.has_accepted_answer:
             current_accepted = db.query(Answer).filter(
                 Answer.question_id == answer.question_id,
-                Answer.is_accepted == True
+                Answer.is_accepted
             ).first()
-            
+
             if current_accepted:
                 current_accepted.is_accepted = False
                 # Decrease reputation for previously accepted answer author
                 if current_accepted.author:
                     current_accepted.author.reputation_score = max(0, current_accepted.author.reputation_score - 15)
-        
+
         # Accept the new answer
         answer.is_accepted = True
         answer.question.has_accepted_answer = True
         answer.question.accepted_answer_id = answer.id
-        
+
         # Increase reputation for answer author (15 points for accepted answer)
         if answer.author:
             answer.author.reputation_score += 15
-        
+
         db.commit()
-        
+
         return AcceptAnswerResponse(
             message="Answer accepted successfully",
             answer_id=answer.id,
             is_accepted=True
         )
-        
+
     except HTTPException:
         db.rollback()
         raise

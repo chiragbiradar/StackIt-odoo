@@ -23,13 +23,13 @@ async def list_tags(
 ):
     """
     List all available tags ordered by usage count.
-    
+
     Returns tags with their usage statistics for question creation forms.
     """
     try:
         # Get all tags ordered by usage count (most used first)
         tags = db.query(Tag).order_by(desc(Tag.usage_count)).all()
-        
+
         # Build response
         tag_responses = [
             TagResponse(
@@ -41,12 +41,12 @@ async def list_tags(
             )
             for tag in tags
         ]
-        
+
         return TagListResponse(
             tags=tag_responses,
             total=len(tag_responses)
         )
-        
+
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
