@@ -22,15 +22,6 @@ class Settings(BaseModel):
     environment: str = os.getenv('ENVIRONMENT', 'development')
     debug: bool = os.getenv('DEBUG', 'True').lower() == 'true'
 
-    # API Configuration
-    api_v1_prefix: str = os.getenv('API_V1_PREFIX', '/api/v1')
-    cors_origins: List[str] = [
-        "http://localhost:3000",
-        "http://localhost:8000",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:8000"
-    ]
-
 # Global settings instance
 settings = Settings()
 

@@ -8,8 +8,8 @@ from fastapi.responses import JSONResponse
 import uvicorn
 from contextlib import asynccontextmanager
 
-# Import configuration
-from utils.config import settings
+# Import configuration (if needed later)
+# from utils.config import settings
 
 # Import database
 from database import engine, create_tables, check_database_connection
@@ -64,7 +64,7 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins="*",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
     allow_headers=["*"],
@@ -95,7 +95,7 @@ async def health_check():
 
 
 # Include API routers
-app.include_router(auth_router, prefix=settings.api_v1_prefix + "/auth", tags=["Authentication"])
+app.include_router(auth_router, tags=["Authentication"])
 # app.include_router(user_router, prefix=settings.api_v1_prefix + "/users", tags=["Users"])
 # app.include_router(question_router, prefix=settings.api_v1_prefix + "/questions", tags=["Questions"])
 # app.include_router(answer_router, prefix=settings.api_v1_prefix + "/answers", tags=["Answers"])
