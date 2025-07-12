@@ -1,9 +1,10 @@
 """
 Notification model for storing user notifications.
 """
-from sqlalchemy import Column, String, Text, Integer, ForeignKey, Boolean, Enum, Index
-from sqlalchemy.orm import relationship
 import enum
+
+from sqlalchemy import Boolean, Column, Enum, ForeignKey, Index, Integer, String, Text
+from sqlalchemy.orm import relationship
 
 from .base import BaseModel
 
@@ -19,26 +20,26 @@ class NotificationType(enum.Enum):
 
 class Notification(BaseModel):
     """Notification model for storing user notifications."""
-    
+
     __tablename__ = "notifications"
-    
+
     # Notification content
     title = Column(
-        String(200), 
+        String(200),
         nullable=False,
         comment="Notification title"
     )
     message = Column(
-        Text, 
+        Text,
         nullable=False,
         comment="Notification message content"
     )
     notification_type = Column(
-        Enum(NotificationType), 
+        Enum(NotificationType),
         nullable=False,
         comment="Type of notification"
     )
-    
+
     # Notification status
     is_read = Column(
         Boolean,
@@ -46,7 +47,7 @@ class Notification(BaseModel):
         nullable=False,
         comment="Whether the notification has been read"
     )
-    
+
     # Related entity references (optional, for linking to specific content)
     related_question_id = Column(
         Integer,
@@ -66,11 +67,11 @@ class Notification(BaseModel):
         nullable=True,
         comment="Reference to related comment (if applicable)"
     )
-    
+
     # Foreign keys
     user_id = Column(
-        Integer, 
-        ForeignKey("users.id", ondelete="CASCADE"), 
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
         comment="Reference to the user who should receive this notification"
@@ -81,14 +82,14 @@ class Notification(BaseModel):
         nullable=True,
         comment="Reference to the user who triggered this notification"
     )
-    
+
     # Relationships
     recipient = relationship("User", back_populates="received_notifications", foreign_keys=[user_id])
     triggered_by = relationship("User", back_populates="triggered_notifications", foreign_keys=[triggered_by_user_id])
     related_question = relationship("Question", foreign_keys=[related_question_id])
     related_answer = relationship("Answer", foreign_keys=[related_answer_id])
     related_comment = relationship("Comment", foreign_keys=[related_comment_id])
-    
+
     # Table arguments for indexes and constraints
     __table_args__ = (
         # Index for user's unread notifications (most common query)

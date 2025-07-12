@@ -2,24 +2,25 @@
 Authentication Service for StackIt Q&A platform.
 Handles user registration, login, and authentication.
 """
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
-from datetime import datetime, timezone
 
 # Import database dependencies
 from database import get_db
 from database.models import User
 
 # Import schemas
-from schemas.auth import UserRegister, UserLogin, AuthResponse, UserResponse, Token
+from schemas.auth import AuthResponse, Token, UserLogin, UserRegister, UserResponse
 
 # Import authentication utilities
 from utils.auth import (
-    get_password_hash,
     authenticate_user,
     create_user_token,
-    get_current_user_id
+    get_current_user_id,
+    get_password_hash,
 )
 
 # OAuth2 scheme for token extraction
@@ -56,7 +57,7 @@ async def get_current_user_dependency(
         return user
 
     except Exception:
-        raise credentials_exception
+        raise credentials_exception from None
 
 
 @router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
@@ -66,7 +67,7 @@ async def register_user(
 ):
     """
     Register a new user account.
-    
+
     - **username**: Unique username (3-50 characters)
     - **email**: Valid email address
     - **password**: Password (minimum 6 characters)
@@ -78,7 +79,7 @@ async def register_user(
         existing_user = db.query(User).filter(
             (User.username == user_data.username) | (User.email == user_data.email)
         ).first()
-        
+
         if existing_user:
             if existing_user.username == user_data.username:
                 raise HTTPException(
@@ -90,10 +91,10 @@ async def register_user(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Email already registered"
                 )
-        
+
         # Hash the password
         hashed_password = get_password_hash(user_data.password)
-        
+
         # Create new user
         new_user = User(
             username=user_data.username,
@@ -110,19 +111,19 @@ async def register_user(
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc)
         )
-        
+
         # Save to database
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
-        
+
         # Create token
         token_data = create_user_token(new_user)
-        
+
         # Prepare response
         user_response = UserResponse.model_validate(new_user)
         token_response = Token(**token_data)
-        
+
         return AuthResponse(
             user=user_response,
             token=token_response,
@@ -138,7 +139,7 @@ async def register_user(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error creating user: {str(e)}"
-        )
+        ) from e
 
 
 @router.post("/login", response_model=AuthResponse)
@@ -148,21 +149,21 @@ async def login_user(
 ):
     """
     Authenticate user and return access token.
-    
+
     - **username**: Username or email address
     - **password**: User password
     """
     try:
         # Authenticate user
         user = authenticate_user(db, login_data.username, login_data.password)
-        
+
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect username or password",
                 headers={"WWW-Authenticate": "Bearer"},
             )
- 
+
         # Check if user is active
         if not user.is_active:
             raise HTTPException(
@@ -170,31 +171,31 @@ async def login_user(
                 detail="Account is deactivated",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        
+
         # Update last login time (optional)
         user.updated_at = datetime.now(timezone.utc)
         db.commit()
-        
+
         # Create token
         token_data = create_user_token(user)
-        
+
         # Prepare response
         user_response = UserResponse.model_validate(user)
         token_response = Token(**token_data)
-        
+
         return AuthResponse(
             user=user_response,
             token=token_response,
             message="Login successful"
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error during login: {str(e)}"
-        )
+        ) from e
 
 
 @router.get("/me", response_model=UserResponse)

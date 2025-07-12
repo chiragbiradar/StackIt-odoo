@@ -1,7 +1,7 @@
 """
 Question model for storing user questions.
 """
-from sqlalchemy import Column, String, Text, Integer, ForeignKey, Boolean, Index
+from sqlalchemy import Boolean, Column, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from .base import BaseModel
@@ -9,22 +9,22 @@ from .base import BaseModel
 
 class Question(BaseModel):
     """Question model for storing user questions."""
-    
+
     __tablename__ = "questions"
-    
+
     # Question content
     title = Column(
-        String(200), 
-        nullable=False, 
+        String(200),
+        nullable=False,
         index=True,
         comment="Question title - short and descriptive"
     )
     description = Column(
-        Text, 
+        Text,
         nullable=False,
         comment="Rich text description of the question"
     )
-    
+
     # Question metadata
     view_count = Column(
         Integer,
@@ -44,7 +44,7 @@ class Question(BaseModel):
         nullable=False,
         comment="Number of answers to this question"
     )
-    
+
     # Question status
     is_closed = Column(
         Boolean,
@@ -58,11 +58,11 @@ class Question(BaseModel):
         nullable=False,
         comment="Whether this question has an accepted answer"
     )
-    
+
     # Foreign keys
     author_id = Column(
-        Integer, 
-        ForeignKey("users.id", ondelete="CASCADE"), 
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
         comment="Reference to the user who asked the question"
@@ -73,12 +73,12 @@ class Question(BaseModel):
         nullable=True,
         comment="Reference to the accepted answer (if any)"
     )
-    
+
     # Relationships
     author = relationship("User", back_populates="questions")
     answers = relationship(
-        "Answer", 
-        back_populates="question", 
+        "Answer",
+        back_populates="question",
         cascade="all, delete-orphan",
         foreign_keys="Answer.question_id",
         lazy="dynamic"
@@ -89,11 +89,11 @@ class Question(BaseModel):
         post_update=True
     )
     question_tags = relationship(
-        "QuestionTag", 
-        back_populates="question", 
+        "QuestionTag",
+        back_populates="question",
         cascade="all, delete-orphan"
     )
-    
+
     # Table arguments for indexes and constraints
     __table_args__ = (
         # Composite index for listing questions by creation date and status

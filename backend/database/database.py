@@ -1,10 +1,22 @@
 """
 Database connection and session management.
 """
-from sqlalchemy import create_engine, event, text
-from sqlalchemy.orm import sessionmaker
 import logging
 
+from sqlalchemy import create_engine, event, text
+from sqlalchemy.orm import sessionmaker
+
+from database.models import (  # noqa: F401
+    Answer,
+    Comment,
+    Notification,
+    Question,
+    QuestionTag,
+    Tag,
+    User,
+    Vote,
+)
+from database.models.base import Base
 from utils.config import settings
 
 # Configure logging
@@ -20,9 +32,6 @@ engine = create_engine(
 
 # Create SessionLocal class
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-# Import Base from models (don't create a new one)
-from .models.base import Base
 
 
 def get_db():
@@ -44,11 +53,6 @@ def get_db():
 def create_tables():
     """Create all database tables."""
     try:
-        # Import all models to ensure they are registered with Base.metadata
-        from .models import (  # noqa: F401
-            User, Question, Answer, Tag, QuestionTag,
-            Vote, Notification, Comment
-        )
 
         logger.info("Creating database tables...")
         Base.metadata.create_all(bind=engine)

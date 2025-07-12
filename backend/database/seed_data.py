@@ -2,14 +2,14 @@
 Seed data for StackIt application.
 Provides initial data for development and testing.
 """
-from sqlalchemy.orm import Session
-from passlib.context import CryptContext
 import logging
-from datetime import datetime
 
-from .models import User, Tag, Question, Answer, Vote, Notification
+from passlib.context import CryptContext
+from sqlalchemy.orm import Session
+
+from .models import Question, Tag, User
+from .models.tag import QuestionTag
 from .models.user import UserRole
-from .models.notification import NotificationType
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +66,7 @@ def create_default_users(db: Session):
             "reputation_score": 75
         }
     ]
-    
+
     created_users = []
     for user_data in users_data:
         # Check if user already exists
@@ -75,7 +75,7 @@ def create_default_users(db: Session):
             logger.info(f"User {user_data['username']} already exists, skipping...")
             created_users.append(existing_user)
             continue
-        
+
         # Create new user
         user = User(
             username=user_data["username"],
@@ -90,7 +90,7 @@ def create_default_users(db: Session):
         db.add(user)
         created_users.append(user)
         logger.info(f"Created user: {user_data['username']}")
-    
+
     db.commit()
     return created_users
 
@@ -114,7 +114,7 @@ def create_default_tags(db: Session):
         {"name": "backend", "description": "Backend development", "color": "#9c27b0"},
         {"name": "frontend", "description": "Frontend development", "color": "#e91e63"}
     ]
-    
+
     created_tags = []
     for tag_data in tags_data:
         # Check if tag already exists
@@ -123,7 +123,7 @@ def create_default_tags(db: Session):
             logger.info(f"Tag {tag_data['name']} already exists, skipping...")
             created_tags.append(existing_tag)
             continue
-        
+
         # Create new tag
         tag = Tag(
             name=tag_data["name"],
@@ -133,7 +133,7 @@ def create_default_tags(db: Session):
         db.add(tag)
         created_tags.append(tag)
         logger.info(f"Created tag: {tag_data['name']}")
-    
+
     db.commit()
     return created_tags
 
@@ -143,32 +143,32 @@ def create_sample_questions(db: Session, users: list, tags: list):
     questions_data = [
         {
             "title": "How to set up FastAPI with PostgreSQL?",
-            "description": """I'm trying to set up a FastAPI application with PostgreSQL database. 
-            I've installed the required packages but I'm getting connection errors. 
-            
+            "description": """I'm trying to set up a FastAPI application with PostgreSQL database.
+            I've installed the required packages but I'm getting connection errors.
+
             Here's my current setup:
             ```python
             from fastapi import FastAPI
             from sqlalchemy import create_engine
-            
+
             app = FastAPI()
             engine = create_engine("postgresql://user:pass@localhost/db")
             ```
-            
+
             What am I missing? Any help would be appreciated!""",
             "author": users[1],  # john_doe
             "tags": ["fastapi", "postgresql", "python"]
         },
         {
             "title": "React state management best practices",
-            "description": """What are the current best practices for state management in React applications? 
+            "description": """What are the current best practices for state management in React applications?
             I'm working on a medium-sized application and wondering whether to use:
-            
+
             1. Built-in useState and useContext
             2. Redux Toolkit
             3. Zustand
             4. Jotai
-            
+
             What would you recommend and why?""",
             "author": users[2],  # jane_smith
             "tags": ["react", "javascript", "frontend"]
@@ -176,7 +176,7 @@ def create_sample_questions(db: Session, users: list, tags: list):
         {
             "title": "SQL query optimization for large datasets",
             "description": """I have a PostgreSQL query that's running very slowly on a table with 10M+ records:
-            
+
             ```sql
             SELECT u.username, COUNT(q.id) as question_count
             FROM users u
@@ -185,13 +185,13 @@ def create_sample_questions(db: Session, users: list, tags: list):
             GROUP BY u.id, u.username
             ORDER BY question_count DESC;
             ```
-            
+
             The query takes over 30 seconds to execute. How can I optimize this?""",
             "author": users[3],  # mike_wilson
             "tags": ["sql", "postgresql", "database"]
         }
     ]
-    
+
     created_questions = []
     for question_data in questions_data:
         # Check if question already exists
@@ -200,7 +200,7 @@ def create_sample_questions(db: Session, users: list, tags: list):
             logger.info(f"Question '{question_data['title']}' already exists, skipping...")
             created_questions.append(existing_question)
             continue
-        
+
         # Create new question
         question = Question(
             title=question_data["title"],
@@ -212,19 +212,18 @@ def create_sample_questions(db: Session, users: list, tags: list):
         )
         db.add(question)
         db.flush()  # Get the question ID
-        
+
         # Add tags to question
         for tag_name in question_data["tags"]:
             tag = next((t for t in tags if t.name == tag_name), None)
             if tag:
-                from .models.tag import QuestionTag
                 question_tag = QuestionTag(question_id=question.id, tag_id=tag.id)
                 db.add(question_tag)
                 tag.usage_count += 1
-        
+
         created_questions.append(question)
         logger.info(f"Created question: {question_data['title']}")
-    
+
     db.commit()
     return created_questions
 
@@ -232,22 +231,22 @@ def create_sample_questions(db: Session, users: list, tags: list):
 def seed_database(db: Session):
     """Seed the database with initial data."""
     logger.info("Starting database seeding...")
-    
+
     try:
         # Create users
         users = create_default_users(db)
         logger.info(f"Created {len(users)} users")
-        
+
         # Create tags
         tags = create_default_tags(db)
         logger.info(f"Created {len(tags)} tags")
-        
+
         # Create sample questions
         questions = create_sample_questions(db, users, tags)
         logger.info(f"Created {len(questions)} questions")
-        
+
         logger.info("✅ Database seeding completed successfully!")
-        
+
     except Exception as e:
         logger.error(f"❌ Error seeding database: {e}")
         db.rollback()

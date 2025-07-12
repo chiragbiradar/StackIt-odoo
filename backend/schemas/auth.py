@@ -2,9 +2,10 @@
 Authentication schemas for StackIt Q&A platform.
 Pydantic models for authentication requests and responses.
 """
-from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
 from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, EmailStr, Field
 
 
 class UserRegister(BaseModel):

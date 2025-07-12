@@ -1,7 +1,7 @@
 """
 Answer model for storing user answers to questions.
 """
-from sqlalchemy import Column, Text, Integer, ForeignKey, Boolean, Index
+from sqlalchemy import Boolean, Column, ForeignKey, Index, Integer, Text
 from sqlalchemy.orm import relationship
 
 from .base import BaseModel
@@ -9,16 +9,16 @@ from .base import BaseModel
 
 class Answer(BaseModel):
     """Answer model for storing user answers to questions."""
-    
+
     __tablename__ = "answers"
-    
+
     # Answer content
     content = Column(
-        Text, 
+        Text,
         nullable=False,
         comment="Rich text content of the answer"
     )
-    
+
     # Answer metadata
     vote_score = Column(
         Integer,
@@ -32,7 +32,7 @@ class Answer(BaseModel):
         nullable=False,
         comment="Number of comments on this answer"
     )
-    
+
     # Answer status
     is_accepted = Column(
         Boolean,
@@ -40,43 +40,43 @@ class Answer(BaseModel):
         nullable=False,
         comment="Whether this answer is accepted by the question author"
     )
-    
+
     # Foreign keys
     question_id = Column(
-        Integer, 
-        ForeignKey("questions.id", ondelete="CASCADE"), 
+        Integer,
+        ForeignKey("questions.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
         comment="Reference to the question this answer belongs to"
     )
     author_id = Column(
-        Integer, 
-        ForeignKey("users.id", ondelete="CASCADE"), 
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
         comment="Reference to the user who wrote this answer"
     )
-    
+
     # Relationships
     question = relationship(
-        "Question", 
+        "Question",
         back_populates="answers",
         foreign_keys=[question_id]
     )
     author = relationship("User", back_populates="answers")
     votes = relationship(
-        "Vote", 
-        back_populates="answer", 
+        "Vote",
+        back_populates="answer",
         cascade="all, delete-orphan",
         lazy="dynamic"
     )
     comments = relationship(
-        "Comment", 
-        back_populates="answer", 
+        "Comment",
+        back_populates="answer",
         cascade="all, delete-orphan",
         lazy="dynamic"
     )
-    
+
     # Table arguments for indexes and constraints
     __table_args__ = (
         # Index for answers by question (most common query)

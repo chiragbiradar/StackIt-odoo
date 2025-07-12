@@ -1,6 +1,7 @@
 import os
+
 from pydantic import BaseModel
-from typing import List
+
 
 class Settings(BaseModel):
     """Application settings loaded from environment variables."""

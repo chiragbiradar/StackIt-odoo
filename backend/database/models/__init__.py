@@ -1,18 +1,18 @@
 """
 Database models for StackIt Q&A platform.
 """
-from .base import Base
-from .user import User
-from .question import Question
 from .answer import Answer
-from .tag import Tag, QuestionTag
-from .vote import Vote
-from .notification import Notification
+from .base import Base
 from .comment import Comment
+from .notification import Notification
+from .question import Question
+from .tag import QuestionTag, Tag
+from .user import User
+from .vote import Vote
 
 __all__ = [
     "Base",
-    "User", 
+    "User",
     "Question",
     "Answer",
     "Tag",

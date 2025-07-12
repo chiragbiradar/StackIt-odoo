@@ -2,20 +2,21 @@
 StackIt Q&A Platform - FastAPI Server
 Main entry point for the StackIt backend application.
 """
+from contextlib import asynccontextmanager
+
+import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-import uvicorn
-from contextlib import asynccontextmanager
 
 # Import configuration (if needed later)
 # from utils.config import settings
-
 # Import database
-from database import engine, create_tables, check_database_connection
+from database import check_database_connection, create_tables
 
 # Import API routes
 from services.auth_service import router as auth_router
+
 # from services.user_service import router as user_router
 # from services.question_service import router as question_router
 # from services.answer_service import router as answer_router
@@ -28,25 +29,25 @@ async def lifespan(app: FastAPI):
     """Application lifespan events."""
     # Startup
     print("🚀 Starting StackIt Q&A Platform...")
-    
+
     # Check database connection
     if not check_database_connection():
         print("❌ Database connection failed!")
         raise HTTPException(status_code=500, detail="Database connection failed")
-    
+
     print("✅ Database connection successful")
-    
+
     # Create tables if they don't exist
     try:
         create_tables()
         print("✅ Database tables ready")
     except Exception as e:
         print(f"❌ Error creating tables: {e}")
-        raise HTTPException(status_code=500, detail="Database setup failed")
-    
+        raise HTTPException(status_code=500, detail="Database setup failed") from e
+
     print("🎉 StackIt backend is ready!")
     yield
-    
+
     # Shutdown
     print("👋 Shutting down StackIt backend...")
 
@@ -77,7 +78,7 @@ async def health_check():
     try:
         # Check database connection
         db_healthy = check_database_connection()
-        
+
         return {
             "status": "healthy" if db_healthy else "unhealthy",
             "database": "connected" if db_healthy else "disconnected",
